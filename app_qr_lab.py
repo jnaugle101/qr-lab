@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 # app_qr_lab.py
 
@@ -12,6 +11,13 @@ import streamlit as st
 APP_TITLE = "🔳 QR Code Lab — Generate, Style & Download"
 
 st.set_page_config(page_title="QR Code Lab", page_icon="🔳", layout="centered")
+
+# --- cross-version rerun helper ---
+def _rerun():
+    if hasattr(st, "rerun"):
+        st.rerun()
+    else:  # older Streamlit
+        st.experimental_rerun()
 
 # --- Light styling ---
 st.markdown(
@@ -40,7 +46,6 @@ def build_wifi_payload(ssid: str, password: str, auth: str, hidden: bool) -> str
     if auth not in {"WEP", "WPA", "WPA2", "NOPASS"}:
         auth = "WPA"
     hidden_flag = "true" if hidden else "false"
-    # escape semicolons and commas minimally
     def esc(s: str) -> str:
         return (s or "").replace("\\", "\\\\").replace(";", r"\;").replace(",", r"\,")
     return f"WIFI:T:{'nopass' if auth=='NOPASS' else auth};S:{esc(ssid)};P:{esc(password)};H:{hidden_flag};;"
@@ -53,14 +58,12 @@ def build_mailto(email: str, subject: str, body: str) -> str:
     return f"mailto:{email}" + (f"?{'&'.join(qs)}" if qs else "")
 
 def build_sms(number: str, message: str) -> str:
-    # SMSTO:number:message is widely supported
     return f"SMSTO:{number}:{message or ''}"
 
 def build_tel(number: str) -> str:
     return f"tel:{number}"
 
 def build_geo(lat: float, lon: float, label: str) -> str:
-    # geo:lat,lon or geo:lat,lon?q=label
     from urllib.parse import quote
     payload = f"geo:{lat},{lon}"
     if label:
@@ -68,11 +71,9 @@ def build_geo(lat: float, lon: float, label: str) -> str:
     return payload
 
 def _fmt_dt(dt: datetime) -> str:
-    # Basic local time -> iCal-like
     return dt.strftime("%Y%m%dT%H%M%S")
 
 def build_vevent(summary: str, start_dt: datetime, end_dt: datetime, location: str, desc: str) -> str:
-    # Minimal iCalendar VEVENT (no tz handling for simplicity)
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -89,7 +90,6 @@ def build_vevent(summary: str, start_dt: datetime, end_dt: datetime, location: s
     return "\n".join(lines)
 
 def build_vcard(given: str, family: str, phone: str, email: str, org: str, title: str, url: str) -> str:
-    # Simple vCard 3.0
     lines = [
         "BEGIN:VCARD",
         "VERSION:3.0",
@@ -213,7 +213,7 @@ with col_left:
                                                logo=logo, logo_scale=logo_scale, round_logo=round_logo,
                                                want_png=want_png, want_svg=want_svg, want_pdf=want_pdf)
             st.success("QR generated below.")
-            st.experimental_rerun()
+            _rerun()
 
 with col_right:
     st.markdown('<div class="hint">Tip: keep high contrast and leave the center clear if you add a logo.</div>', unsafe_allow_html=True)
@@ -239,16 +239,11 @@ if "qr_payload" in st.session_state:
             # optional round mask
             if opts["round_logo"]:
                 import numpy as np
-                mask = Image.new("L", logo_img.size, 0)
-                mdraw = Image.new("L", logo_img.size, 0)
-                # circular mask via numpy
                 w, h = logo_img.size
                 y, x = np.ogrid[:h, :w]
                 centerx, centery = (w - 1) / 2, (h - 1) / 2
                 radius = min(centerx, centery)
-                circle = (x - centerx) ** 2 + (y - centery) ** 2 <= radius ** 2
-                mask_np = np.zeros((h, w), dtype=np.uint8)
-                mask_np[circle] = 255
+                mask_np = ((x - centerx) ** 2 + (y - centery) ** 2 <= radius ** 2).astype("uint8") * 255
                 mask = Image.fromarray(mask_np, mode="L")
                 logo_img.putalpha(mask)
 
